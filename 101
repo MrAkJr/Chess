@@ -1,0 +1,100 @@
+import pygame
+import chess
+import chess.engine
+import time
+
+# Initialize Pygame
+pygame.init()
+
+# Set up display
+WIDTH, HEIGHT = 600, 600
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Chess Game")
+
+# Load chess board image
+BOARD_IMAGE = pygame.image.load("board.png")
+BOARD_IMAGE = pygame.transform.scale(BOARD_IMAGE, (WIDTH, HEIGHT))
+
+# Load piece images
+PIECE_IMAGES = {}
+for piece in chess.PIECE_NAMES:
+    for color in ["w", "b"]:
+        PIECE_IMAGES[color + piece] = pygame.image.load(f"pieces/{color}{piece}.png")
+
+# Chess board logic
+board = chess.Board()
+engine = chess.engine.SimpleEngine.popen_uci("stockfish")
+
+# Difficulty levels (depth for Stockfish AI)
+DIFFICULTY = {"Easy": 1, "Medium": 3, "Hard": 5, "Expert": 7}
+current_difficulty = "Medium"
+
+def draw_board():
+    screen.blit(BOARD_IMAGE, (0, 0))
+    for square in chess.SQUARES:
+        piece = board.piece_at(square)
+        if piece:
+            piece_image = PIECE_IMAGES[f"{piece.color and 'w' or 'b'}{piece.symbol().lower()}"]
+            rank = 7 - (square // 8)
+            file = square % 8
+            screen.blit(piece_image, (file * 75, rank * 75))
+
+    pygame.display.flip()
+
+def ai_move():
+    result = engine.play(board, chess.engine.Limit(depth=DIFFICULTY[current_difficulty]))
+    board.push(result.move)
+
+def animate_move(move):
+    start_square = move.from_square
+    end_square = move.to_square
+    piece = board.piece_at(end_square)
+    if not piece:
+        return
+    
+    start_x = (start_square % 8) * 75
+    start_y = (7 - start_square // 8) * 75
+    end_x = (end_square % 8) * 75
+    end_y = (7 - end_square // 8) * 75
+    
+    for i in range(10):
+        dx = start_x + (end_x - start_x) * i / 10
+        dy = start_y + (end_y - start_y) * i / 10
+        draw_board()
+        screen.blit(PIECE_IMAGES[f"{piece.color and 'w' or 'b'}{piece.symbol().lower()}"], (dx, dy))
+        pygame.display.flip()
+        time.sleep(0.02)
+
+def main():
+    running = True
+    selected_square = None
+    global current_difficulty
+
+    while running:
+        draw_board()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                x, y = pygame.mouse.get_pos()
+                file = x // 75
+                rank = 7 - (y // 75)
+                square = chess.square(file, rank)
+
+                if selected_square is None:
+                    piece = board.piece_at(square)
+                    if piece and piece.color == chess.WHITE:
+                        selected_square = square
+                else:
+                    move = chess.Move(selected_square, square)
+                    if move in board.legal_moves:
+                        board.push(move)
+                        animate_move(move)
+                        ai_move()
+                    selected_square = None
+
+    pygame.quit()
+    engine.quit()
+
+if __name__ == "__main__":
+    main()
